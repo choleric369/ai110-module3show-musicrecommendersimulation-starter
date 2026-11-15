@@ -1,0 +1,59 @@
+PROMPT LOG
+Project: ai110-module3show-musicrecommendersimulation-starter
+Format: every user prompt is recorded verbatim, in order, with a timestamp.
+================================================================================
+
+[2026-11-14 | Prompt #1]
+I need all my prompts to be saved into prompts.txt, all the errors or ambiguity we run needs to be in logs.txt for errors mark it as "[error]" and populate it for ambiguity mark as "[ambiguity]"
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #2]
+and I need a reasoning.txt, for the decisions you made vague explanation if I instruct you to give the reasoning else don't need to push for everything
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #3]
+analyze the available data and suggest which features would be most effective for a simple content-based recommender. (songs.csv file)
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #4]
+okay consider genre, mood, energy, acoustic this is the priority order for me to suggest music to any user, we need to consider this order while suggesting the music and we can rank too, lets say user like pop and calm, we suggest pop, calm first then comes pop relaxed in the ranking and later indie-pop. This is just an example, so I need suggestions and they have to be ranked too. You don't need to implement this but open readme.md and explain this concept, like on what basis the recommedation system is going to be designed fair out my explanation please
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #5]   (logged late — see [error] in logs.txt)
+okay lets do data farming, generate 5 more songs and add them to songs.csv, make sure that they are diverse
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #6]
+cool now add 5 more songs, I don't want you to add anymore new vocabulary okay use the existing ones and add 5 more
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #7]
+Sketch a quick map of the data flow to plan your logic: Input (User Prefs), then Process (The Loop: Judging every individual song in the CSV using your scoring logic), then Output (The Ranking: Top K Recommendations)
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #8]
+in recommender.py, can you please implement load_songs, it has to load songs.csv
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #9]
+lets test, run main.py
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #10]
+yes implement score_song
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #11]
+implement recommend_songs too
+
+--------------------------------------------------------------------------------

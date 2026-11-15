@@ -1,0 +1,9 @@
+REASONING LOG
+Project: ai110-module3show-musicrecommendersimulation-starter
+Purpose: short, high-level explanations of decisions — written ONLY when the reasoning
+is explicitly asked for. Not a running commentary on every change.
+================================================================================
+
+(no entries yet)
+
+--------------------------------------------------------------------------------

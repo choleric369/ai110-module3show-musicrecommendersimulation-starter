@@ -1,0 +1,281 @@
+ERROR & AMBIGUITY LOG
+Project: ai110-module3show-musicrecommendersimulation-starter
+Markers: [error] = something failed or broke   |   [ambiguity] = unclear requirement/decision point
+================================================================================
+
+[2026-11-14 | Prompt #1]
+[ambiguity] "all my prompts" — unclear whether this means only user-typed prompts or
+also the assistant's replies, and whether logging starts from this prompt or should be
+backfilled from earlier work in the repo.
+Resolution: logging user prompts only, verbatim, starting from Prompt #1 (this one).
+Earlier work (recommender.py, AI grading scaffold) predates this request and was not
+backfilled.
+
+[ambiguity] Scope of "errors" — unclear whether this covers only runtime/tool errors or
+also wrong assumptions and failed approaches.
+Resolution: logging anything that failed or had to be redone (tool errors, failing tests,
+bad assumptions) under [error], and any unclear requirement under [ambiguity].
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #2]
+[ambiguity] "vague explanation if I instruct you to give the reasoning else don't need to
+push for everything" — unclear whether reasoning.txt should be filled in for every
+decision or only on request.
+Resolution: reasoning.txt is written only when the reasoning is explicitly asked for,
+and entries are kept short and high-level rather than exhaustive. The file exists now
+but starts empty.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #3]
+[ambiguity] "most effective" has no definition here — there are no user ratings or
+click data in the repo, so feature quality cannot be measured against ground truth.
+Resolution: judged features by three proxies instead — (1) spread/variance across the
+10 songs, (2) non-redundancy with other features, (3) whether the UserProfile dataclass
+and tests/test_recommender.py already require the field.
+
+[ambiguity] Dataset has "pop" and "indie pop" as separate genre values. Unclear whether
+they should be treated as related or distinct.
+Resolution: flagged to the user as a data issue rather than decided unilaterally —
+exact string matching treats them as unrelated, which drops a good candidate for the
+pop/happy profile in src/main.py.
+
+[error] None this turn. Analysis script ran clean against data/songs.csv
+(scratchpad/analyze.py, 10 rows parsed, no missing values).
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #4]
+[ambiguity] User's example used mood "calm", which does not exist in data/songs.csv.
+The mood column contains: chill, focused, happy, intense, moody, relaxed.
+Resolution: introduced a "related mood family" tier so calm/chill/relaxed/focused are
+treated as one listening state with partial credit, rather than failing the match.
+Documented in README under "Partial credit: the related tier".
+
+[ambiguity] "priority order" could mean strict priority (genre always wins, no matter
+what) or just heavier weights on genre.
+Resolution: read it as STRICT, because the user's own example ranks indie-pop below both
+pop entries regardless of their mood. Implemented in the README design by spacing the
+genre tiers (20/10/0) wider than the maximum total of all lower features (7 points), so
+genre can never be out-voted. Flagged for user confirmation.
+
+[ambiguity] Mood priority is NOT strict under the documented weights — its 2-point tier
+gap is smaller than the 3 points available from energy + acoustic combined.
+Resolution: kept as a deliberate design choice (mood labels are subjective and shouldn't
+be as rigid as genre) and documented it openly in the README, along with the alternative
+weights (8/4/0) that would make mood strict too. User's call.
+
+[ambiguity] User wrote "indie-pop" (hyphenated); the data uses "indie pop" (space).
+Resolution: treated as the same value. A real implementation needs to normalise
+hyphens/spaces/case before matching, or the related-genre tier will silently miss.
+
+[error] Drafted a sentence in the README explaining mood-tier spacing that contradicted
+itself mid-sentence ("outweighs ... only when ... it doesn't"). Caught on review before
+finishing the turn and rewritten into the explicit trade-off now documented.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #5]   (logged retroactively during Prompt #6)
+[error] PROCESS FAILURE — Prompt #5 was never written to prompts.txt, and its
+ambiguities were never written to logs.txt, during the turn it was given. The omission
+was only caught at Prompt #6 when an edit to prompts.txt failed to find the expected
+preceding entry. Both files have been backfilled. Cause: the logging step was skipped
+while focus was on the data-generation task; it is a manual step with nothing enforcing
+it. A UserPromptSubmit hook would prevent recurrence for prompts.txt (offered at Prompt
+#1, not yet set up).
+
+[ambiguity] "make sure that they are diverse" — diverse was not defined, and could mean
+diverse-sounding titles/artists, or statistically spread across the feature space.
+Resolution: read it as statistical coverage, since the data feeds a recommender.
+Targeted three things: (1) empty bands in the numeric ranges, (2) unrepresented genres
+and moods, (3) breaking the energy/acousticness correlation of -0.99 that made those two
+features redundant.
+
+[ambiguity] Adding songs required new genre and mood values (folk, bluegrass, r&b,
+electronic, hip hop; melancholy, romantic, confident) which expand the controlled
+vocabulary the README's related-tier design depends on.
+Resolution: added them for coverage and flagged to the user that the README mood
+families need melancholy folded in with moody, and confident with happy. NOTE: the user
+responded at Prompt #6 by forbidding further vocabulary growth — this ambiguity is now
+resolved as "no more new values".
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #6]
+[ambiguity] "no new vocabulary" — unclear whether artist names count as vocabulary
+alongside genre and mood, since artist is a free-text proper noun rather than a
+controlled matching field.
+Resolution: took the strictest reading and reused only existing artists, adding zero new
+artist names. This also has a side benefit: Neon Echo now has 3 tracks and Copper Holler,
+Voltline, Orbit Bloom, Slow Stereo and Paper Lanterns have 2 each, which gives the
+one-song-per-artist diversity rule something real to work against.
+
+[ambiguity] Song titles are necessarily new strings and cannot be reused.
+Resolution: treated titles as outside the vocabulary constraint — they are unique
+identifiers, not matching features, and the recommender never scores on them.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #7]
+[ambiguity] "Sketch a quick map" — destination not specified (chat only, README, or a
+separate design file).
+Resolution: put it in README.md as a new "Data Flow" section, since it is design
+documentation and the README's "How The System Works" scaffold explicitly invites a
+diagram. Shown in chat as well. Easy to remove if the user wanted it chat-only.
+
+[ambiguity] Ordering inside the output stage was undefined — the artist de-duplication
+could run before the sort, between sort and top-k, or after top-k. Each gives different
+results.
+Resolution: sort -> dedupe -> cut. Sorting first means the one song kept per artist is
+that artist's BEST match; cutting last means the list is always a full k rather than
+short. Documented the reasoning in the README.
+
+[error] Found a stale fact in the README while adding the diagram: the "Choosing what to
+show" section still said "Two artists in this catalog have multiple tracks", which was
+true at 10 songs but wrong after the data farming (six artists now do). Corrected to six.
+Cause: prose written against the old dataset was not revisited when the CSV grew.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #8]
+[error] PRE-EXISTING BUG, NOT FIXED — `python -m src.main` fails with
+"ModuleNotFoundError: No module named 'recommender'". Cause: src/main.py line 12 uses
+`from recommender import ...` (a plain import that only resolves when src/ is itself on
+sys.path), but README.md's Getting Started section tells the user to run
+`python -m src.main`. The two are incompatible.
+Workaround that does work: `python src/main.py` from the project root.
+Not changed — it is outside the scope of this prompt and the fix is a trade-off (making
+`-m src.main` work breaks `python src/main.py` and vice versa). Reported to the user.
+
+[error] First verification run of the load_songs check script failed with
+"ModuleNotFoundError: No module named 'src'". Cause: the script lives in the scratchpad
+directory, so the project root was not on sys.path. Fixed by running with PYTHONPATH=.
+No defect in load_songs itself.
+
+[ambiguity] Unclear whether load_songs should return raw CSV strings or convert values
+to numbers.
+Resolution: converts. id becomes int and the five audio columns become float, because
+score_song does arithmetic on them (|song.energy - target|) and would otherwise have to
+re-convert on every comparison. Text columns stay strings.
+
+[ambiguity] Unclear whether case/whitespace normalisation belongs in load_songs or in
+score_song.
+Resolution: split them. load_songs only strips surrounding whitespace; lowercasing and
+hyphen/space handling stay in score_song, matching the Data Flow diagram agreed at
+Prompt #7. This keeps the loaded data faithful to the file so titles and artists still
+display with their original casing.
+
+[ambiguity] Unclear how malformed rows should behave — skip them silently, or fail.
+Resolution: fail loudly with the file path and line number (e.g. "data/songs.csv line 3:
+could not convert string to float: 'NOT_A_NUMBER'"). Silent skipping would make a typo in
+the CSV look like a missing song, which is much harder to debug. Genuinely blank lines
+are still skipped, since the file ends with a newline.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #9]
+[error] `python -m src.main` still fails — same pre-existing import bug recorded at
+Prompt #8 (src/main.py line 12 uses `from recommender import ...`). Ran the working
+invocation `python src/main.py` from the project root instead. Still unfixed, still the
+user's call.
+
+[error] main.py runs cleanly (exit 0) but prints NO recommendations. This is NOT a
+failure of load_songs. Traced each pipeline stage:
+    load_songs()      -> 20 songs   WORKS
+    score_song()      -> []         STUB, still has its TODO
+    recommend_songs() -> []         STUB, still has its TODO
+Cause: only load_songs has been implemented so far. main.py loops over the empty list
+returned by recommend_songs, so the loop body never executes and nothing prints.
+Expected at this stage, not a defect.
+
+[ambiguity] "lets test" could mean run the app, or run the pytest suite.
+Resolution: did both. `python src/main.py` as literally asked, plus `pytest` (2 passed)
+to confirm the Prompt #8 change broke nothing. Note the existing tests only cover the
+OOP Recommender class and never touch load_songs, so they would not have caught a
+loader bug.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #10]
+[ambiguity] GENRE_FAMILIES is incomplete. Only three related-genre pairs are defined
+(pop/indie pop, folk/bluegrass, r&b/hip hop) because those are the only ones documented
+in the README and logs. Six of the twelve genres therefore have NO relative and can only
+ever score an exact match or zero: ambient, electronic, jazz, lofi, rock, synthwave.
+Resolution: implemented only the documented pairs rather than inventing new ones.
+Obvious candidates the user may want to add: {electronic, synthwave} and {lofi, ambient}.
+One-line change to GENRE_FAMILIES in src/recommender.py. Flagged, not done.
+
+[ambiguity] Same gap in MOOD_FAMILIES: "intense" and "romantic" belong to no family, so
+they are exact-match-only.
+Resolution: left as is. There is no convincing partner for either in the current mood
+vocabulary, and the user forbade new vocabulary at Prompt #6.
+
+[ambiguity] user_prefs key names differ between the two interfaces in the starter.
+src/main.py sends {"genre", "mood", "energy"} while the UserProfile dataclass uses
+{favorite_genre, favorite_mood, target_energy, likes_acoustic}.
+Resolution: score_song reads the main.py-style keys, since that is the caller it is
+documented to serve. The Recommender class will need to translate UserProfile fields to
+these keys when it is implemented. Noted as a follow-up.
+
+[ambiguity] main.py's profile has no "likes_acoustic" key at all, so the lowest-priority
+feature would be missing on the default run.
+Resolution: every feature is optional. A missing key contributes no points and adds no
+reason instead of raising KeyError, so a partial profile still scores. Verified: the
+exact dict main.py sends scores 25.96 on Sunrise City with 3 of 4 reasons.
+
+[ambiguity] Should reasons include features that scored zero (e.g. "genre did not
+match")?
+Resolution: no - reasons list only features that actually earned points, matching the
+README's rule that explanations are recorded as points are added. Consequence: a song
+matching nothing returns an empty reasons list, which recommend_songs must handle when
+it builds the explanation string. Noted as a follow-up.
+
+[error] None. Verified against six checks, all passing:
+  1. README worked example reproduced to the cent (26.96 / 26.90 / 25.00 / 6.76 / 4.94)
+  2. user's pop+calm example: every pop > every indie pop > every other genre
+  3. genre priority absolute: worst pop song 22.74 > best non-pop song 4.78
+  4. reasons sum exactly to the returned score
+  5. partial and empty profiles score without crashing
+  6. normalisation: 'Indie-Pop', 'indie-pop', '  INDIE   POP  ' all equal 'indie pop'
+  pytest: 2 passed (unchanged - the suite still does not cover score_song).
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #11]
+[ambiguity] Artist de-duplication caps the result list at the number of distinct
+artists. With 20 songs by 12 artists, k=20 returns 12, not 20.
+Resolution: accepted as correct behaviour - it is the de-dup rule working as designed,
+not a truncation bug. Flagged because a caller asking for k=20 and receiving 12 could
+reasonably think something failed. If a full-length list is ever needed, the de-dup
+would have to become optional via a parameter.
+
+[ambiguity] Tie-breaking was undefined. The pop+calm profile produces two songs at
+exactly 20.00 (Sunrise City and Gym Hero), and nothing in the design said which wins.
+Resolution: rely on Python's stable sort, so tied songs keep catalog (id) order. This
+makes output deterministic across runs without inventing a hidden fifth ranking feature.
+Verified identical across 5 consecutive runs.
+
+[ambiguity] What explanation should a song with zero matching features get, given
+score_song returns an empty reasons list (flagged at Prompt #10)?
+Resolution: _explain() returns "nothing in this song matches the profile" rather than an
+empty string, so main.py never prints a bare "Because:" line.
+
+[error] Caught before it shipped: the first draft of the top-k cut used
+`if len(recommendations) == k: break` AFTER appending, which never fires for k=0 and
+would have returned one song for a request of zero. Changed to a `k <= 0` guard plus
+`if len(recommendations) >= k: break` at the top of the loop. Verified k=0 and k=-1 both
+return [].
+
+[error] None remaining. main.py now runs end to end and prints 5 ranked recommendations
+with explanations. Verified against six checks, all passing:
+  1. de-dup keeps the artist's BEST track (LoRoom: kept Midnight Coding 26.96, dropped
+     Focus Flow 25.00) - confirms sort-before-dedup is the right order
+  2. results sorted descending for four different profiles, including an empty one
+  3. k boundaries: 0/-1 -> 0, 1 -> 1, 5 -> 5, 20/100 -> 12 (artist cap)
+  4. determinism: 5 runs of a tie-producing profile gave identical output
+  5. return shape unpacks exactly as src/main.py line 27 expects
+  6. empty catalog -> [], no-match profile -> 0.00 with a readable explanation
+  pytest: 2 passed (suite still covers only the OOP Recommender class).
+
+--------------------------------------------------------------------------------
