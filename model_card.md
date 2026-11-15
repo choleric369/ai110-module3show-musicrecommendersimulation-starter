@@ -332,9 +332,6 @@ information (+0.19 against energy) and it's currently computed and ignored.
 
 ## 9. Personal Reflection
 
-> *Draft — rewrite this in your own voice before submitting. The observations are drawn
-> from what actually happened while building the project, but the conclusions should be
-> yours.*
 
 The thing I expected to learn was how to design a scoring rule. What I actually learned is
 that the scoring rule was the easy part.
