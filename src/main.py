@@ -9,7 +9,14 @@ You will implement the functions in recommender.py:
 - recommend_songs
 """
 
-from recommender import load_songs, recommend_songs
+try:
+    # Works for `python -m src.main` (what the README tells you to run) and for
+    # anything that imports this file as part of the src package.
+    from src.recommender import load_songs, recommend_songs
+except ModuleNotFoundError:
+    # Falls back for `python src/main.py` and IDE "Run" buttons, which put
+    # src/ on the path instead of the project root.
+    from recommender import load_songs, recommend_songs
 
 
 def main() -> None:
