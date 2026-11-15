@@ -1,6 +1,6 @@
 import csv
 from typing import List, Dict, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 # Columns every row of data/songs.csv must provide.
 REQUIRED_COLUMNS = (
@@ -83,21 +83,64 @@ class UserProfile:
     target_energy: float
     likes_acoustic: bool
 
+def _profile_to_prefs(user: UserProfile) -> Dict:
+    """
+    Translates a UserProfile into the preference dict score_song expects.
+
+    The two halves of this project name the same four preferences differently:
+    UserProfile uses favorite_genre/favorite_mood/target_energy/likes_acoustic,
+    while src/main.py sends genre/mood/energy. This is the single place that
+    bridges them, so the scoring rules live in exactly one function.
+    """
+    return {
+        "genre": user.favorite_genre,
+        "mood": user.favorite_mood,
+        "energy": user.target_energy,
+        "likes_acoustic": user.likes_acoustic,
+    }
+
+
 class Recommender:
     """
     OOP implementation of the recommendation logic.
     Required by tests/test_recommender.py
+
+    Wraps the same scoring rules used by the functional path rather than
+    repeating them, so the two can never disagree about what a song is worth.
     """
     def __init__(self, songs: List[Song]):
         self.songs = songs
 
+    def score(self, user: UserProfile, song: Song) -> float:
+        """Points this song earns against the profile. See score_song()."""
+        return score_song(_profile_to_prefs(user), asdict(song))[0]
+
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        # TODO: Implement recommendation logic
-        return self.songs[:k]
+        """
+        Returns the k best-matching songs, highest score first.
+
+        Unlike recommend_songs(), this does NOT limit results to one song per
+        artist - tests/test_recommender.py builds a catalog where every song
+        shares an artist and expects all of them back. Use recommend_songs()
+        when you want a varied listening list.
+        """
+        if k <= 0:
+            return []
+
+        # Stable sort: songs on equal scores keep their catalog order, so the
+        # result is the same on every run.
+        ranked = sorted(self.songs, key=lambda s: self.score(user, s), reverse=True)
+        return ranked[:k]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        # TODO: Implement explanation logic
-        return "Explanation placeholder"
+        """
+        Says in plain language why this song suits this profile.
+
+        Built from the reasons score_song collected while adding up the score,
+        so the explanation can never disagree with the number.
+        """
+        _, reasons = score_song(_profile_to_prefs(user), asdict(song))
+        return _explain(reasons)
 
 def load_songs(csv_path: str) -> List[Dict]:
     """
