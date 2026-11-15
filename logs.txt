@@ -455,3 +455,35 @@ breakages introduced one at a time, each reverted with git checkout:
 src/recommender.py confirmed unmodified afterwards.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #22]
+[ambiguity] The README template asks for "a sample" - singular. One profile does not
+demonstrate the design, since a single run cannot show both the related-genre tier and
+the energy tiebreaker.
+Resolution: included two runs. pop/happy/0.8 shows the full cascade and the score cliff;
+lofi/chill/0.4/acoustic shows the 0.06-point energy tiebreak at the bottom of the
+priority order.
+
+[ambiguity] Whether to annotate the output or paste it bare as the template implies.
+Resolution: annotated. The lofi run omits Focus Flow (25.00) with no visible explanation
+- a reader comparing scores would reasonably call that a bug rather than the
+one-song-per-artist rule. Left unexplained, the sample would mislead.
+
+[error] First Edit to README.md failed - "String to replace not found in file". Cause: a
+stray trailing double-quote accidentally included at the end of the old_string. Retried
+without it and it applied. No impact on the file.
+
+[error] Verification script failed with FileNotFoundError writing to /tmp/actual.txt.
+Cause: /tmp does not exist on Windows. Rerun against the session scratchpad directory.
+
+[note] Both sample blocks verified against live output rather than pasted from memory:
+the default-profile block matches `python -m src.main` line for line, and the Focus Flow
+claims were checked directly (scores 25.0, absent from top 5, artist LoRoom, same as
+Midnight Coding).
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #23]
+[note] Documentation-only change. pytest rerun anyway to confirm nothing drifted.
+
+--------------------------------------------------------------------------------
