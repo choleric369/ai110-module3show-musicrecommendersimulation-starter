@@ -416,3 +416,42 @@ import bug, and was outside the scope of this prompt. Fix if wanted: build the p
 __file__ instead of the CWD. Reported to the user.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #20]
+[error] A TEST THAT COULD NOT FAIL. The first version of
+test_related_genre_scores_between_an_exact_match_and_none asserted
+`related == pytest.approx(GENRE_RELATED)` using the constant imported from the module
+under test. Mutating GENRE_RELATED from 10.0 to 19.9 - which destroys the entire genre
+priority guarantee - left all 37 tests passing, because the expected value moved with
+the code.
+Found by deliberately mutating the source and re-running, not by reading the tests.
+Fix: added two tests that assert the INVARIANT rather than the value -
+  test_weights_preserve_the_priority_spacing_rule: each genre tier gap must exceed
+  MOOD_EXACT + ENERGY_WEIGHT + ACOUSTIC_WEIGHT
+  test_an_exact_genre_match_beats_a_related_one_that_wins_everything_else: behavioural
+  version of the same rule
+Both now fail under that mutation.
+Lesson: importing a constant to build the expected value makes a test agree with
+whatever the code says. Assert the relationship the design depends on instead.
+
+[ambiguity] Whether tests should read data/songs.csv or build their own fixtures.
+Resolution: split by purpose. load_songs tests read the real file, because loading the
+project's actual catalog is the thing being tested. score_song and recommend_songs tests
+build synthetic songs via make_song(), so they keep passing when the catalog changes.
+No scoring test asserts a number that depends on data/songs.csv contents.
+
+[ambiguity] Whether to assert an exact song count for the real catalog (20).
+Resolution: no. Asserting len(songs) == 20 would fail the moment more songs are added,
+which is expected and healthy. The tests assert structural invariants instead: every row
+has all ten columns, ids are unique, numerics are numeric, text is non-empty.
+
+[note] Suite went from 2 tests to 39. Validated by mutation testing - five deliberate
+breakages introduced one at a time, each reverted with git checkout:
+  1. GENRE_RELATED 10.0 -> 19.9          -> caught (after the fix above)
+  2. artist de-duplication removed       -> caught (2 failures)
+  3. energy made pass/fail not continuous-> caught (1 failure)
+  4. mood scoring dropped                -> caught (3 failures)
+  5. float conversion removed            -> caught (2 failures)
+src/recommender.py confirmed unmodified afterwards.
+
+--------------------------------------------------------------------------------
