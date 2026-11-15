@@ -233,16 +233,67 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Sample Recommendation Output
 
-Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
+Produced by `python -m src.main` against the 20-song catalog in `data/songs.csv`.
+
+### Default profile: `genre=pop, mood=happy, energy=0.8`
 
 ```
-# e.g.:
-# User profile: genre=indie, mood=chill, energy=low
-# Recommendations:
-#   1. ...
-#   2. ...
-#   3. ...
+Top recommendations:
+
+Sunrise City - Score: 25.96
+Because: genre matches pop (+20); mood matches happy (+4); energy 0.82 vs target 0.80 (+1.96)
+
+Gym Hero - Score: 21.74
+Because: genre matches pop (+20); energy 0.93 vs target 0.80 (+1.74)
+
+Rooftop Lights - Score: 15.92
+Because: indie pop is close to pop (+10); mood matches happy (+4); energy 0.76 vs target 0.80 (+1.92)
+
+Corner Store Kings - Score: 3.78
+Because: confident feels like happy (+2); energy 0.69 vs target 0.80 (+1.78)
+
+Slow Collapse - Score: 2.00
+Because: energy 0.80 vs target 0.80 (+2.00)
 ```
+
+The whole design is legible in those five lines. The two exact-genre songs take the top,
+separated only by how close their energy sits to 0.80. *Rooftop Lights* is the
+related-genre tier doing its job — indie pop places third, above every non-pop song, but
+cannot climb past actual pop no matter how well it matches everything else. Then the
+scores fall off a cliff to 3.78, where songs are matching on mood and energy alone.
+
+*Slow Collapse* at the bottom is worth noticing: it matches **nothing** except energy,
+and a perfect energy match is worth only 2.00 points. That is the priority order working
+as intended — being right about the least important feature earns the least.
+
+### A different taste: `genre=lofi, mood=chill, energy=0.4, likes_acoustic=True`
+
+```
+Midnight Coding - Score: 26.96
+Because: genre matches lofi (+20); mood matches chill (+4); energy 0.42 vs target 0.40 (+1.96); acoustic, as preferred (+1)
+
+Library Rain - Score: 26.90
+Because: genre matches lofi (+20); mood matches chill (+4); energy 0.35 vs target 0.40 (+1.90); acoustic, as preferred (+1)
+
+Spacewalk Thoughts - Score: 6.76
+Because: mood matches chill (+4); energy 0.28 vs target 0.40 (+1.76); acoustic, as preferred (+1)
+
+Coffee Shop Stories - Score: 4.94
+Because: relaxed feels like chill (+2); energy 0.37 vs target 0.40 (+1.94); acoustic, as preferred (+1)
+
+Dust Road Hymn - Score: 4.76
+Because: relaxed feels like chill (+2); energy 0.52 vs target 0.40 (+1.76); acoustic, as preferred (+1)
+```
+
+The top two are separated by **0.06 points**. Both match genre and mood exactly and both
+are acoustic, so the only thing left to tell them apart is energy — 0.42 against 0.40
+beats 0.35 against 0.40. That is the cascade reaching its fourth level.
+
+There is a third lofi song in the catalog, *Focus Flow*, which scores 25.00 and does not
+appear. It is by LoRoom, the same artist as *Midnight Coding*, and the
+one-song-per-artist rule keeps only that artist's best track. Without it the top three
+would be two LoRoom songs and a Paper Lanterns song — a correct ranking, but a dull
+playlist.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
 
