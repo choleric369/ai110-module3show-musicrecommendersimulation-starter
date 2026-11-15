@@ -57,3 +57,18 @@ yes implement score_song
 implement recommend_songs too
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #12]
+commit the code changes please
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #13]
+where are the code changes I can't see it, can you share the path please
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #14]
+do it, I need to see the changes locally
+
+--------------------------------------------------------------------------------

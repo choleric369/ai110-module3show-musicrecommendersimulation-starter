@@ -279,3 +279,50 @@ with explanations. Verified against six checks, all passing:
   pytest: 2 passed (suite still covers only the OOP Recommender class).
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #12]
+[ambiguity] "the code changes" could mean only src/recommender.py, or everything
+produced in this session (code, data, README, logs).
+Resolution: committed all of it, split into four commits by concern - catalog, code,
+docs, logs. Leaving the README and data uncommitted would have left the repo describing
+a 10-song catalog while shipping a 20-song one.
+
+[ambiguity] The session started on the default branch (main), where committing directly
+is risky.
+Resolution: created branch feat/content-based-recommender and committed there, leaving
+main untouched. The user can merge or fast-forward whenever they want. Flagged in case
+they expected the commits to land on main.
+
+[error] Git emitted "LF will be replaced by CRLF" warnings for prompts.txt, logs.txt and
+reasoning.txt. Harmless on Windows - Git is normalising line endings on checkout, the
+committed content is unchanged. No action taken.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #13]
+[error] USER-VISIBLE CONSEQUENCE OF THE PROMPT #12 BRANCHING DECISION - the user could
+not find the code changes. Cause: the four commits went to branch
+feat/content-based-recommender and were never merged to main or pushed, so main and the
+GitHub repo still showed the original stubs. The working tree on disk did contain the
+new code, but anything looking at main or the remote appeared unchanged.
+Lesson: branching away from the default branch needs to be stated as "your main branch
+will not show this yet", not just "I branched first".
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #14]
+[error] `git checkout main` aborted with "Your local changes to the following files
+would be overwritten by checkout: logs.txt, prompts.txt". Cause: these two files were
+committed at Prompt #12 and then edited again in the same turn to record that very
+commit, leaving them dirty. The logging convention edits files after committing them, so
+this will recur on every commit.
+Fix applied: committed the log updates before switching branches.
+Prevention: commit prompts.txt and logs.txt LAST in any commit sequence, after all other
+entries for that turn are written.
+
+[ambiguity] "do it" followed a message offering two separate actions - merge into main
+locally, or push to GitHub.
+Resolution: merged into main only. The user said "I need to see the changes locally",
+which points at the merge; pushing sends code to a remote and was not clearly asked for.
+
+--------------------------------------------------------------------------------
