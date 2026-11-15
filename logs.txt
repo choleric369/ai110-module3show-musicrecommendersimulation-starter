@@ -338,3 +338,52 @@ feature branch is now redundant - identical content - and was left local.
 prompts.txt and logs.txt were committed last and the tree was clean at push time.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #16]
+[error] DESIGN CONFLICT FOUND IN THE STARTER TESTS - Recommender.recommend() cannot
+apply the one-song-per-artist rule that recommend_songs() applies.
+tests/test_recommender.py builds a two-song catalog where BOTH songs have
+artist="Test Artist", then asserts len(results) == 2 for k=2. De-duplicating by artist
+returns 1 song and fails that assertion.
+Resolution: recommend() does NOT de-duplicate; recommend_songs() still does. Documented
+the divergence in the recommend() docstring so the next reader does not treat it as a
+bug. Verified both behaviours on the test's own catalog: recommend() -> 2 songs,
+recommend_songs() -> 1 song.
+Open question for the user: this is a real inconsistency between the two public paths.
+Either the test should change, or recommend() should take an opt-in de-dup flag.
+
+[ambiguity] UserProfile and main.py name the same four preferences differently
+(favorite_genre/favorite_mood/target_energy/likes_acoustic vs genre/mood/energy). This
+was flagged as a follow-up at Prompt #10.
+Resolution: added one private bridge, _profile_to_prefs(), rather than duplicating the
+scoring rules for the OOP path. The priority logic now exists in exactly one function,
+score_song(), so the two paths cannot drift apart. Verified: all 20 songs score
+identically through both paths.
+
+[ambiguity] Recommender had no way to expose a song's score - recommend() returns bare
+Song objects per its type hint, so callers could not see why the order came out as it
+did.
+Resolution: added a small score() method. It keeps the declared return type of
+recommend() intact while making the ranking inspectable, and explain_recommendation()
+covers the human-readable side.
+
+[error] None remaining. Verified with five checks, all passing:
+  1. OOP and functional paths score all 20 songs identically
+  2. recommend() returns Song objects, sorted descending; k=0/-1 -> 0, k=100 -> 20
+  3. top 3 match the README worked example exactly
+  4. explain_recommendation() returns non-empty strings, including for a 0.98 song
+  5. the starter test's own same-artist catalog returns 2 songs as asserted
+  pytest: 2 passed. src/main.py unchanged and still runs.
+
+--------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #17]
+[note] Committed directly to main and pushed, rather than branching as at Prompt #12.
+Reason: main is already the working branch after the Prompt #14 merge, and the branching
+detour is what hid the changes from the user in the first place (see the Prompt #13
+error). Logged as a deliberate reversal, not an oversight.
+
+[note] Log entries written before staging again, so prompts.txt and logs.txt commit last
+and the tree is clean at push time. No repeat of the Prompt #14 checkout conflict.
+
+--------------------------------------------------------------------------------
