@@ -387,3 +387,32 @@ error). Logged as a deliberate reversal, not an oversight.
 and the tree is clean at push time. No repeat of the Prompt #14 checkout conflict.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #18]
+[error] FIXED - the import error first recorded at Prompt #8.
+Was: src/main.py line 12 `from recommender import load_songs, recommend_songs`, which
+only resolves when src/ itself is on sys.path. `python -m src.main` (the command
+README.md tells users to run) failed with "ModuleNotFoundError: No module named
+'recommender'".
+Fix: try `from src.recommender import ...` first, fall back to `from recommender import
+...` on ModuleNotFoundError.
+
+[ambiguity] Three possible fixes, each with a different trade-off:
+  (a) change to `from src.recommender import ...`  -> fixes -m, BREAKS python src/main.py
+  (b) add src/__init__.py and use a relative import -> same breakage as (a)
+  (c) try/except covering both
+Resolution: chose (c). Option (a) is cleaner and matches how tests/test_recommender.py
+imports, but it would break `python src/main.py` - which is exactly what an IDE "Run"
+button executes, and the user is working in an IDE. Breaking the Run button to fix a
+terminal command would trade one broken path for another.
+Verified both now work and print identical output, plus pytest 2 passed.
+
+[error] SEPARATE ISSUE, NOT FIXED - running from inside the src/ directory
+(`cd src && python main.py`) still fails, now with
+"FileNotFoundError: [Errno 2] No such file or directory: 'data/songs.csv'".
+Cause: src/main.py line 16 passes the CWD-relative path "data/songs.csv", so it only
+resolves when the working directory is the project root. This is a path bug, not an
+import bug, and was outside the scope of this prompt. Fix if wanted: build the path from
+__file__ instead of the CWD. Reported to the user.
+
+--------------------------------------------------------------------------------
