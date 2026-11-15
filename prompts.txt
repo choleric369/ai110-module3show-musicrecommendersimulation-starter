@@ -117,3 +117,61 @@ add the sample recommendation output to readme
 commit and push it
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #24]
+draft the experiments section
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #25]
+run /login
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #26]
+whats my current path?
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #27]
+lets test this code
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #28]
+is it new cluade session or contination of previous one?
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #29]
+okay you have access to the files, and go through readme.md, and once you are done suggest some "adversarial" or "edge case"
+
+run each case and give me the result
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #30]
+these test are fine but I need you to define at least three distinct user preference dictionaries (e.g., "High-Energy Pop," "Chill Lofi," "Deep Intense Rock").
+and test on them (the user profiles...
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #31]
+write up the limitations section first
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #32]
+can you do the model_card.md for me please
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #33]
+fix the defects and add the regression tests
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #34]
+commit all the files, entire folder and push it into git please
+
+--------------------------------------------------------------------------------

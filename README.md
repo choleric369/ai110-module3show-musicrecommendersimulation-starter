@@ -110,9 +110,9 @@ behaviour at every level of the cascade.
 
 ### Choosing what to show
 
-The top *k* songs by score, with one extra rule: **at most one song per artist**. Six
-artists in this catalog have multiple tracks, and without that rule a top-5 list can be
-half the same artist — technically correct, practically useless.
+The top *k* songs by score, with one extra rule: **at most one song per artist**. Seven
+of the twelve artists in this catalog have multiple tracks, and without that rule a top-5
+list can be half the same artist — technically correct, practically useless.
 
 ---
 
@@ -301,23 +301,263 @@ playlist.
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
+All runs below use the profile `genre=pop, mood=happy, energy=0.8, likes_acoustic=False`
+unless stated otherwise. The baseline ranking is:
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+```
+26.96  Sunrise City        [pop]
+22.74  Gym Hero            [pop]
+16.92  Rooftop Lights      [indie pop]
+ 4.78  Corner Store Kings  [hip hop]
+ 3.00  Slow Collapse       [rock]
+```
+
+### 1. Which features are worth scoring at all
+
+Before writing any scoring code I measured how the audio columns relate to each other
+across the catalog. Four of the five numeric columns turned out to be the same signal:
+
+```
+energy ↔ tempo_bpm       r = +0.96
+energy ↔ acousticness    r = -0.99
+energy ↔ danceability    r = +0.86
+```
+
+At `r = -0.99`, `acousticness` carries almost no information that `energy` does not
+already carry — so a user's `likes_acoustic` preference could never disagree with their
+`target_energy`. Scoring all four would not have been four signals; it would have been
+one signal counted four times, quietly drowning out genre and mood.
+
+**Outcome:** dropped `tempo_bpm` and `danceability` from scoring entirely. Kept `energy`
+as the intensity axis and `acousticness` as a separate yes/no preference. `valence` was
+the only numeric column that was genuinely independent (`r = +0.19` against energy), and
+it is held in reserve as a tiebreaker rather than scored.
+
+### 2. Fixing the data instead of the code
+
+The correlations above were a property of the starter catalog, not of music. Ten songs
+chosen to break them — a loud acoustic bluegrass track, a quiet electronic one, a slow
+heavy rock song, a fast weightless ambient one — changed the picture:
+
+| Feature pair | 10 songs | 15 songs | 20 songs |
+|---|---|---|---|
+| energy ↔ tempo_bpm | +0.96 | +0.92 | **+0.65** |
+| energy ↔ acousticness | −0.99 | −0.68 | **−0.69** |
+| energy ↔ danceability | +0.86 | +0.79 | **+0.69** |
+| danceability ↔ acousticness | −0.85 | −0.71 | **−0.61** |
+
+**Outcome:** no pair now correlates above 0.69, so every column carries information no
+other column has. This was the single highest-leverage change in the project, and it
+involved no code at all.
+
+### 3. Flattening the weights
+
+Set genre to 2/1 and mood to 2/1, leaving energy and acoustic as they were, so all four
+features contribute roughly equally:
+
+```
+ 6.96  Sunrise City        [pop]
+ 5.92  Rooftop Lights      [indie pop]   <-- climbed past a pop song
+ 4.74  Gym Hero            [pop]
+ 3.78  Corner Store Kings  [hip hop]
+ 3.00  Slow Collapse       [rock]
+```
+
+**Outcome:** exactly the failure the priority design exists to prevent. *Rooftop Lights*
+overtakes *Gym Hero* — an indie pop song beating actual pop for a user who asked for pop
+— purely by accumulating small wins on mood and energy. A user who asks for a genre and
+is served something else does not read it as a clever blend; they read it as broken.
+This experiment is why the genre tiers are spaced wider than everything below them can
+sum to.
+
+### 4. Removing the related tier
+
+Set both family tables to empty, so genre and mood become exact-match-or-nothing:
+
+```
+Rooftop Lights:  16.92  ->  6.92
+```
+
+**Outcome:** *Rooftop Lights* falls from a clear third place into the same band as the
+hip hop and rock songs that match nothing but mood and energy. For a user who likes pop,
+an indie pop track is a good recommendation — far better than a rock track — and binary
+matching throws that away. The middle tier is what separates "wrong genre" from "nearly
+right genre."
+
+### 5. Making mood strict as well
+
+The README design notes that mood's 2-point tier gap is narrower than the 3 points
+energy and acoustic can supply, so mood is deliberately *not* absolute. Raising mood to
+8/4 would make it strict:
+
+**Outcome: no change.** Both the pop and lofi rankings came out in exactly the same
+order, with every score simply shifted upward. The documented trade-off is real in
+principle but never fires on this catalog — there is no song here that matches mood
+exactly while missing energy badly enough for the gap to matter. Worth knowing before
+"fixing" something that is not currently doing any harm.
+
+### 6. Adding the two missing genre families
+
+Six of the twelve genres have no related-tier partner. Added `{electronic, synthwave}`
+and `{lofi, ambient}`, then tested with `genre=synthwave, mood=moody, energy=0.7`:
+
+```
+                    before    after
+Night Drive Loop    25.90     25.90   [synthwave, exact]
+Glass Tunnel         5.36    15.36   [electronic, now related]
+Static Bloom         3.26     3.26
+```
+
+**Outcome:** *Glass Tunnel* moves out of the "matches almost nothing" band and into the
+related tier where it belongs. This is a one-line change and is not currently applied —
+it is left as a decision rather than an assumption, since genre adjacency is a taste
+judgement, not a fact.
+
+### 7. Turning off artist de-duplication
+
+Using the lofi profile:
+
+```
+WITH de-dup (current)              WITHOUT de-dup
+26.96  Midnight Coding  [LoRoom]   26.96  Midnight Coding  [LoRoom]
+26.90  Library Rain               26.90  Library Rain
+ 6.76  Spacewalk Thoughts         25.00  Focus Flow       [LoRoom]
+```
+
+**Outcome:** without the rule, two of the top three are the same artist. The ranking is
+*more accurate* — *Focus Flow* really is the third-best match at 25.00 — but the
+playlist is worse. This is the one place where the system deliberately returns a less
+accurate answer because it is a more useful one.
+
+### 8. Trying to break the tests
+
+After writing the test suite, five deliberate bugs were introduced one at a time to
+check the tests would catch them: breaking the genre tier spacing, removing artist
+de-duplication, making energy pass/fail, dropping mood scoring, and removing the float
+conversion in `load_songs`.
+
+**Outcome:** four were caught immediately. The genre-spacing mutation was **not** — all
+37 tests still passed while the central guarantee of the design was broken. The cause
+was a test that asserted `related == approx(GENRE_RELATED)` using the constant imported
+from the module under test, so the expected value moved with the code and the assertion
+could never fail. Replaced with two tests that assert the *invariant* instead: each
+genre tier gap must exceed the total the lower-priority features can contribute. A test
+that cannot fail is worse than no test, because it reports safety that is not there.
 
 ---
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+### The one that matters most: nothing here measures whether the recommendations are *good*
 
-Examples:
+76 tests pass. Every one of them checks that the system obeys the rules written for it —
+that genre outranks mood, that scores and explanations agree, that no artist appears
+twice. **Not one of them checks that a listener would enjoy the result**, because there is
+no data in this project that could answer that. There are no listening histories, no
+ratings, no skips, no thumbs. The catalog has songs and the profiles are invented.
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+So the whole evaluation is internal consistency, not accuracy. A scoring rule can be
+perfectly self-consistent and still have terrible taste. Every claim in this README of the
+form "this ranking is better" is an argument from design intuition, and should be read
+that way. The honest summary: *this system does what I told it to; whether what I told it
+is right is untested.*
+
+### Known defects
+
+Found by adversarial probing, confirmed by running them. All five are open.
+
+| # | Defect | Effect |
+|---|---|---|
+| 1 | `load_songs` accepts `NaN` and `Infinity` | `float("NaN")` succeeds, so the "not a number" guard misses them. A row with `acousticness=1e400` parses as `inf`, clears the 0.5 threshold, earns the acoustic point and scores **21.00** — outranking clean songs |
+| 2 | No duplicate-`id` check | Three rows with `id=7` load without complaint. `test_load_songs_gives_every_song_a_unique_id` asserts uniqueness of *the shipped catalog*, not of the function — a data assertion wearing a function's name |
+| 3 | Artist de-dup misses spelling variants | `_normalise` maps hyphen→space, so `LoRoom`→`loroom` but `Lo-Room`→`lo room`. Same artist, both survive the filter |
+| 4 | Out-of-range `target_energy` fails silently | `energy=80` (meaning 0.80 on a 0–100 scale) drives closeness negative for every song; `max(0.0, …)` clamps all of them to **+0.00**. The tie-breaker the cascade depends on vanishes, with no error, while the explanation still prints `energy 0.82 vs target 80.00 (+0.00)` |
+| 5 | Only the ASCII hyphen is normalised | `Indie-Pop` scores 20.0; `Indie–Pop` with an en or em dash scores 0.0 |
+
+Defects 1 and 4 share a shape worth naming: **the system's failure mode is silence.** It
+does not crash or warn on bad input — it returns a confident, well-formatted, fully
+explained ranking that is quietly wrong. That is the more dangerous kind of bug, because
+nothing downstream can detect it.
+
+### It cannot say "I don't have anything for you"
+
+Asked for `genre=polka`, which no song matches, the output is formatted identically to a
+perfect match:
+
+```
+5.96  Sunrise City    mood matches happy (+4); energy 0.82 vs target 0.80 (+1.96)
+5.92  Rooftop Lights  mood matches happy (+4); energy 0.76 vs target 0.80 (+1.92)
+```
+
+A 5.96 and a 26.96 look the same to anyone reading the list. There is no threshold below
+which the system declines to recommend, and no signal that the top result is merely the
+least bad of twenty wrong answers. Real recommenders need that floor.
+
+### Deliberate trade-offs, restated as costs
+
+- **One song per artist costs real accuracy.** For the Deep Intense Rock profile, *Slow
+  Collapse* scores **26.80** — the second-best match in the catalog — and is dropped
+  because *Storm Runner* by the same artist already charted. Third place goes to a 5.92
+  bluegrass track. The listener gets variety they did not ask for, at the price of the
+  match they did.
+- **Mood is deliberately not absolute**, so a related mood with good energy can beat an
+  exact mood with bad energy. Experiment 5 showed this never fires on the current
+  catalog — which means the trade-off is untested in practice, not that it is safe.
+- **Three of five numeric columns are ignored.** `tempo_bpm` and `danceability` were
+  dropped as redundant and `valence` is held in reserve. A listener who cares about tempo
+  has no way to say so.
+- **One genre, one mood, one energy.** The profile cannot express "pop *or* rock", "happy
+  but not frantic", or any change of mood across a day.
+
+### Data limitations
+
+20 songs, 12 genres, 12 artists — a median of under two songs per genre. Conclusions drawn
+from a catalog this size are anecdotes with decimal points. Experiment 2 showed how fragile
+this is: adding ten songs moved `energy ↔ acousticness` from −0.99 to −0.69, changing which
+features were worth scoring at all. Another ten songs could move it again.
+
+Seven of the twelve artists have more than one track, so the de-dup rule is not an edge
+case here — it is suppressing something in almost every list.
+
+### Where bias and unfairness enter
+
+**The genre families are one person's taste, encoded as fact.** `{pop, indie pop}`,
+`{folk, bluegrass}`, `{r&b, hip hop}` are assertions about which music is "close to" which,
+written by me, with no listener input. Grouping r&b with hip hop rather than with soul or
+pop is a cultural judgment, and the system presents it to users as a neutral property of
+the music. README experiment 6 left two more families unapplied for exactly this reason —
+but the three that *are* applied were never held to the same standard.
+
+**That judgment distributes advantage unevenly.** Only 6 of 12 genres have a related-tier
+partner:
+
+| Has a partner | No partner |
+|---|---|
+| pop, indie pop, folk, bluegrass, r&b, hip hop | lofi, rock, ambient, jazz, synthwave, electronic |
+
+A song in a covered genre can score up to **17.00** for a listener who asked for its
+partner. A song in an uncovered genre is capped at **7.00** against any query but its own
+exact name. Six genres are structurally locked out of the middle tier — not because the
+music is less similar to anything, but because nobody wrote their row in the table. An
+artist's reach depends on whether their genre has a well-connected label.
+
+**Scale would make this worse, not better.** On 20 songs a missing family is a curiosity.
+On 20,000, the uncovered genres become systematically harder to discover, and since
+discovery drives plays, the gap compounds. This system has no popularity signal, so it
+cannot yet produce a rich-get-richer loop — but adding one without first fixing the family
+table would bake the existing advantage into the feedback.
+
+**The de-dup rule redistributes exposure, and that is a choice too.** Capping every artist
+at one slot helps artists with a single strong track and penalises a prolific artist whose
+catalog genuinely fits the listener. *Neon Echo* has three tracks and can never place more
+than one. Defensible — but it is the system deciding how attention is shared, not the
+listener.
+
+### What would move this past guesswork
+
+Ground truth. Even a dozen listeners rating a dozen lists would turn every "this ranking is
+better" claim in this README into something falsifiable. Until then the right posture is
+that the design is *reasoned*, not *validated*.
 
 You will go deeper on this in your model card.
 
@@ -336,3 +576,43 @@ Write 1 to 2 paragraphs here about what you learned:
 
 
 
+The profiles
+
+┌─────────────────────────┬───────┬────────────┬────────┬──────────┐
+│         Profile         │ genre │    mood    │ energy │ acoustic │
+├─────────────────────────┼───────┼────────────┼────────┼──────────┤
+│ High-Energy Pop         │ pop   │ happy      │ 0.90   │ no       │
+├─────────────────────────┼───────┼────────────┼────────┼──────────┤
+│ Chill Lofi              │ lofi  │ chill      │ 0.35   │ yes      │
+├─────────────────────────┼───────┼────────────┼────────┼──────────┤
+│ Deep Intense Rock       │ rock  │ intense    │ 0.90   │ no       │
+├─────────────────────────┼───────┼────────────┼────────┼──────────┤
+│ Acoustic Folk Wind-Down │ folk  │ melancholy │ 0.30   │ yes      │
+└─────────────────────────┴───────┴────────────┴────────┴──────────┘
+
+I added a fourth beyond the three you named — folk/bluegrass is the only family that exercises the related tier and the artist de-dup rule simultaneously, which turned out to matter.
+
+What each listener actually gets
+
+High-Energy Pop — clean cascade, pop → indie pop → everything else.
+26.84  Sunrise City        [pop/happy]         genre +20; mood +4; energy 0.82 vs 0.90 +1.84; produced +1
+22.94  Gym Hero            [pop/intense]       genre +20; energy 0.
+16.72  Rooftop Lights      [indie pop/happy]   indie pop close to pop +10; mood +4; energy +1.72; produced +1
+ 4.58  Corner Store Kings  [hip hop/confident]
+ 2.98  Storm Runner        [rock/intense]
+
+Chill Lofi — hits exactly 27.00, the documented ceiling, on real data. All four features match.
+27.00  Library Rain        [lofi/chill]   genre +20; mood +4; energc +1
+26.86  Midnight Coding     [lofi/chill]
+ 6.86  Spacewalk Thoughts  [ambient/chill]
+
+Deep Intense Rock — the most revealing. Both rock songs are by Voltllapse at 26.80 — the second-best match in the whole catalog — andthird place falls to a 5.92 bluegrass track.
+26.98  Storm Runner           [rock/intense]      Voltline
+ 6.94  Gym Hero               [pop/intense]       <- 20-point cliff
+ 5.92  Barn Burner Breakdown  [bluegrass/intense]
+suppressed: 26.80 Slow Collapse [Voltline]                                                                                                                          
+Acoustic Folk Wind-Down — same trade-off, sharper. Barn Burner Breakdown (bluegrass, related tier, 11.88) is suppressed because Copper Holler already charted, so a 6.94 ambient song takes third.
+26.98  Paper Planes Fade  [folk/melancholy]
+22.56  Dust Road Hymn     [folk/relaxed]      Copper Holler
+ 6.94  Static Bloom       [ambient/melancholy]
+suppressed: 11.88 Barn Burner Breakdown [Copper Holler]

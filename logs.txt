@@ -487,3 +487,269 @@ Midnight Coding).
 [note] Documentation-only change. pytest rerun anyway to confirm nothing drifted.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #24]
+[ambiguity] Only three of the eight experiments had actually been run at the time of the
+request. Experiments 1, 2 and 8 (feature correlation, catalog expansion, mutation
+testing) were genuine history from logs.txt; the weight and family variations were
+decisions made by reasoning, never measured.
+Resolution: ran the missing five for real before writing about them, by patching the
+module constants at runtime and recording actual rankings. Nothing in the section is
+inferred - every number printed came from an executed run.
+This matters because the README template invites exactly this kind of fabrication
+("what happened when you changed the weight on genre from 2.0 to 0.5" is a prompt to
+describe an experiment, not necessarily to run one).
+
+[error] A DOCUMENTED TRADE-OFF TURNED OUT TO BE INERT. The README has claimed since
+Prompt #4 that mood is deliberately "softer" than genre - its 2-point tier gap is
+narrower than the 3 points energy and acoustic can supply, so a related-mood song with
+great energy can beat an exact-mood song with poor energy.
+Raising mood to 8/4 to make it strict changed NOTHING: both the pop and lofi rankings
+came out in identical order, with scores merely shifted up.
+Cause: no song in the 20-song catalog matches mood exactly while missing energy badly
+enough for the 1-point difference to decide anything. The trade-off is real in the
+arithmetic but never fires on this data.
+Recorded honestly as Experiment 5 rather than quietly dropped. The README design section
+still describes the trade-off, which remains accurate as a statement about the weights.
+
+[note] Experiment baseline uses likes_acoustic=False, so scores run 1 point higher than
+the Sample Recommendation Output section, where main.py sends no likes_acoustic key at
+all (25.96 vs 26.96 for Sunrise City). Stated at the top of the section so the two sets
+of numbers do not look contradictory.
+
+[note] Experiment 6 (adding {electronic, synthwave} and {lofi, ambient} families) was
+measured but NOT applied to src/recommender.py. Glass Tunnel moves 5.36 -> 15.36 for a
+synthwave listener. Left as the user's decision, consistent with the Prompt #10 flag -
+genre adjacency is a taste judgement, not a fact.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #25]
+[error] CANNOT COMPLY - /login is a built-in Claude Code CLI command, handled by the
+client itself, not a project skill or a shell command. There is no tool available to
+invoke it on the user's behalf; it has to be typed into the prompt box directly. Nothing
+was run and nothing in the repo changed.
+
+[note] Unrelated to the recommender. The Prompt #24 work (README experiments section,
+logs.txt, prompts.txt) is still uncommitted on main.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #26]
+[no issues] Answered from the session environment - no tool call needed.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #27]
+[ambiguity] "test this code" could mean run the existing pytest suite, write new tests,
+or manually exercise the CLI. Resolved it as "run what we already have, both layers":
+the 39-test suite via pytest, then src/main.py end to end to confirm the real catalog
+still produces sane output. No new tests were written - if that was the intent, say so.
+
+[no errors] 39 passed in 0.16s. main.py printed 5 recommendations, each with a score and
+a reason breakdown, one track per artist, descending order.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #28]
+[no issues] Meta question, not about the code. Answered: NEW session, started at the
+/login turn. Continuity comes from the on-disk memory file plus prompts.txt / logs.txt,
+not from a retained transcript.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #29]
+Built 13 adversarial probes against the claims the README makes, ran all 13.
+Harness kept in the scratchpad, not committed to the repo.
+
+[error] load_songs accepts NaN and Infinity. float("NaN") and float("Infinity") both
+succeed, so the "ValueError if a row holds a value that is not a number" guard misses
+them. A row with acousticness=1e400 parses as inf, clears the 0.5 acoustic threshold,
+and scores 21.00 - outranking a clean song. Energy of nan/inf silently scores 0.00 via
+max(0.0, closeness).
+
+[error] load_songs never checks id uniqueness. A CSV with three id=7 rows loads without
+complaint. test_load_songs_gives_every_song_a_unique_id asserts uniqueness of the
+SHIPPED CATALOG, not of the function - it is a data assertion wearing a function's name,
+the same cannot-fail pattern README section 8 documents catching for genre spacing.
+
+[error] Artist de-duplication misses spelling variants. _normalise turns hyphens into
+spaces, so "LoRoom" -> "loroom" but "Lo-Room" -> "lo room". The two do not match and
+both survive the one-song-per-artist filter.
+
+[error] Out-of-range target_energy fails silently. energy=80 (a user meaning 0.80 on a
+0-100 scale) drives closeness negative for every song, max(0.0, ...) clamps all of them
+to +0.00, and the energy feature stops discriminating entirely - with no warning and a
+reason string that still prints "energy 0.82 vs target 80.00 (+0.00)". Same for any
+target outside [0,1]. The tie-breaker the design depends on is gone.
+
+[error] _normalise only handles the ASCII hyphen. "Indie-Pop" matches indie pop (20.0);
+"Indie" + en dash or em dash + "Pop" scores 0.0.
+
+[note] score_song raises KeyError on a song dict missing a column it reads. Contract-wise
+it only ever receives load_songs output, so this is robustness, not a live bug.
+
+[ambiguity] Case 12 looked like a defect and is not. Recommender.recommend and
+recommend_songs return different lists for the lofi profile (Focus Flow appears in one,
+not the other), but the scores agree exactly where they overlap - the OOP path documents
+that it deliberately skips artist de-duplication. Claim "the two can never disagree about
+what a song is worth" holds. Recorded so it is not re-flagged later.
+
+[no issues] Four claims survived the attack: genre priority is absolute (right-genre
+20.00 vs wrong-genre-but-otherwise-perfect 7.00), the 27.00 ceiling is exact, an empty
+profile degrades gracefully to 0.00 with a readable explanation, and the falsy-value
+trap is handled - energy=0 and likes_acoustic=False both score instead of being skipped
+as missing keys.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #30]
+Added tests/test_profiles.py - four named listener profiles evaluated end to end on the
+real catalog. 37 tests, all passing. Full suite now 76 passing.
+
+Profiles: High-Energy Pop (pop/happy/0.90/not acoustic), Chill Lofi (lofi/chill/0.35/
+acoustic), Deep Intense Rock (rock/intense/0.90/not acoustic), Acoustic Folk Wind-Down
+(folk/melancholy/0.30/acoustic). The fourth is beyond the three asked for; it was added
+because folk/bluegrass is the only genre family that exercises the related tier AND the
+artist de-dup rule at the same time.
+
+[ambiguity] "test on them" could mean print the rankings or write assertions. Did both:
+got the live numbers first, then wrote tests asserting them, so the expected values are
+recorded from real output rather than predicted.
+
+[note] Expected top picks are hard-coded from the live catalog, so editing data/songs.csv
+will fail these tests on purpose - they are a citable record of current behaviour for the
+evaluation write-up.
+
+[note] Chill Lofi returns Library Rain at exactly 27.00 - the documented ceiling reached
+by real data, all four features matching.
+
+[note] Followed the README section 8 rule: the invariant tests do NOT import the scoring
+weights, so they cannot silently track a mutated constant.
+
+[no issues] Mutation-tested the new suite instead of trusting a green run. Flattening the
+genre weights to 2/1 failed 8 tests; disabling artist de-duplication failed 6. Both
+mutations reverted, src/recommender.py confirmed unchanged by git diff. The suite can
+fail, so passing means something.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #31]
+Replaced the starter boilerplate under README "Limitations and Risks" with a real
+write-up (~1170 words, 7 subsections). Suite re-run after the edit: 76 passing.
+
+Sections: no ground truth / internal consistency only; the five open defects as a table;
+the no-good-match problem; deliberate trade-offs restated as costs; data limitations;
+bias and unfairness; what would move it past guesswork.
+
+[note] Led with the limitation that the whole evaluation measures rule-obedience, not
+recommendation quality. 76 passing tests say the system does what it was told; nothing in
+the project can say whether what it was told is right. That belonged at the top, above
+the defect list, because it bounds every "this ranking is better" claim in the README.
+
+[note] Named the shared shape of defects 1 and 4: the failure mode is silence. Bad input
+produces a confident, well-formatted, fully explained ranking that is quietly wrong.
+
+[note] Quantified the fairness claim instead of asserting it. Only 6 of 12 genres sit in a
+GENRE_FAMILIES entry, so a covered genre can reach 17.00 against its partner's query while
+an uncovered genre is capped at 7.00 against anything but its own exact name. Six genres
+are locked out of the middle tier because nobody wrote their row.
+
+[error] Found a factual error in the existing README while checking artist concentration.
+Line 113 claimed "Six artists in this catalog have multiple tracks". The real count is
+SEVEN of twelve - Neon Echo (3), LoRoom, Voltline, Paper Lanterns, Orbit Bloom, Slow
+Stereo, Copper Holler (2 each). Corrected in place.
+
+[note] Edit tool warned README.md had changed on disk since it was last read. Checked with
+git diff before the second edit; the delta was the already-uncommitted experiments section
+from Prompt #24 plus this new section. Nothing unexpected, nothing overwritten.
+
+[note] The five defects are still unfixed - documented, not repaired. Fixing them and
+adding regressions is the obvious next step.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #32]
+Wrote model_card.md, all 9 sections, replacing the starter prompts. Named the model
+"Cascade 1.0" after the priority-order design. Suite unaffected: 76 passing.
+
+[error] SIXTH DEFECT, found while writing section 6. README line 66 documents a mood
+family "intense / energetic". No such family exists in MOOD_FAMILIES - the code has only
+{calm,chill,relaxed,focused}, {happy,confident}, {moody,melancholy}. Verified: user
+mood="energetic" vs a song with mood="intense" scores 0.0, where the README promises
+partial credit. The docs describe behaviour the code does not have.
+
+[note] Related: "intense" (4 songs) and "romantic" (2 songs) are in no mood family at all,
+so 6 of 20 songs can never earn mood partial credit. intense is the catalog's MOST common
+mood. Mirrors the genre-coverage gap (6 of 12 genres uncovered) and strengthens the
+fairness argument - the related tier is a privilege, unevenly handed out.
+
+[error] Caught two of my own numeric errors before finishing. (1) Said Rooftop Lights
+drops from 16.72 to 6.92 when the related tier is removed - mixing the energy=0.90 profile
+with README experiment 4's energy=0.80 figures. Correct drop is 16.72 -> 6.72. (2) Said
+"4 of 20 songs" for uncovered moods, counting intense but not romantic; correct count is
+6 of 20. Both fixed.
+
+[ambiguity] Section 9 is "Personal Reflection" - first-person student voice, which is not
+mine to claim. Drafted it from what actually happened in the project (the data-not-code
+finding, the test that could not fail, the three-line bias table) and marked it clearly as
+a draft to be rewritten in the user's own voice before submission.
+
+[note] Section 3 required plain language, no code, "explaining to a friend who does not
+program" - written to that constraint, no identifiers or syntax in that section.
+
+[note] model_card.md and README.md now both reference six open defects. Still unfixed.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #33]
+Fixed all six defects in src/recommender.py and added tests/test_regressions.py.
+Suite now 136 passing (39 unit + 37 profile + 60 regression).
+
+Fixes: reject non-finite numbers and out-of-range proportions at load; enforce unique
+ids in the loader; new _artist_key() that strips separators so LoRoom/Lo-Room collapse;
+raise ValueError on a target energy outside 0.0-1.0 instead of silently clamping to zero;
+_normalise now maps all eight dash characters to space, not just the ASCII hyphen; added
+the {intense, energetic} mood family the README already documented.
+
+[note] Adding the mood family changes no existing ranking - no catalog song uses the mood
+"energetic", so the family only affects users who type that word. Verified before adding.
+
+[note] Left "romantic" without a mood family on purpose and wrote a test asserting that,
+with the reason in the docstring. Inventing a partner would be a taste judgement, which
+is the same principle README experiment 6 applied to the two unapplied genre families.
+
+[error] WROTE A TEST THAT COULD NOT FAIL - the exact mistake README section 8 documents,
+committed inside the regression test for it. test_non_finite_energy_is_rejected asserted
+"finite" in str(excinfo.value). pytest names tmp_path directories after the test, so the
+error string contained ".../test_non_finite_energy_is_rejected0/nonfinite.csv" and the
+substring "finite" was satisfied by the DIRECTORY NAME, not the message. The assertion
+passed whether or not the code was correct.
+
+Caught only because mutation testing refused to go red: disabling the non-finite check
+left all 13 tests passing. Without that step it would have shipped. Fixed by adding an
+error_text() helper that strips the path before asserting, and applying it to every
+message assertion in the file. Re-ran the mutation: now 6 tests fail as they should.
+
+[note] Mutation-tested all six fixes individually by reverting each one. Failures per
+fix: non-finite 6, range check 5, duplicate id 2, artist key 1, energy range 8, dashes
+10, mood family 2. Every fix has at least one test that goes red without it. Source
+restored and verified with git diff after each run.
+
+[ambiguity] Whether to also range-check tempo_bpm. Resolved: no. It is a rate, not a
+proportion, and has no fixed upper bound - 152 bpm is legal. Added a test pinning that
+so a later "tighten validation" pass does not break it.
+
+--------------------------------------------------------------------------------
+
+[2026-11-15 | Prompt #34]
+Committed all seven changed/new files to main and pushed to origin.
+
+[note] .venv/, __pycache__/ and .pytest_cache/ are covered by .gitignore, so "entire
+folder" means the seven tracked files - no virtualenv or bytecode went into the commit.
+Confirmed with git add -A --dry-run before committing.
+
+[note] Committed directly to main rather than branching, matching the existing history
+in this repo (every prior commit is on main) and the explicit request.
+
+--------------------------------------------------------------------------------

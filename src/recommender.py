@@ -1,5 +1,6 @@
 import csv
-from typing import List, Dict, Tuple, Optional
+import math
+from typing import List, Dict, Tuple
 from dataclasses import dataclass, asdict
 
 # Columns every row of data/songs.csv must provide.
@@ -10,6 +11,10 @@ REQUIRED_COLUMNS = (
 
 # Columns that must be converted from text to numbers before scoring.
 NUMERIC_COLUMNS = ("energy", "tempo_bpm", "valence", "danceability", "acousticness")
+
+# Numeric columns that are proportions and must land in [0.0, 1.0]. tempo_bpm is
+# excluded - it is a rate, not a proportion, and has no fixed upper bound.
+UNIT_INTERVAL_COLUMNS = ("energy", "valence", "danceability", "acousticness")
 
 # ---------------------------------------------------------------------------
 # Scoring configuration
@@ -37,18 +42,41 @@ GENRE_FAMILIES = (
     {"r&b", "hip hop"},
 )
 
-# Moods that describe the same listening state. "calm" is listed even though no
-# song uses it, so a user who asks for "calm" still matches chill/relaxed/focused.
+# Moods that describe the same listening state. Words no song uses - "calm",
+# "energetic" - are listed deliberately, so a user who asks for one still matches
+# the family the catalog does use.
+#
+# "romantic" has no family on purpose. Nothing in the catalog is clearly adjacent
+# to it, and inventing a partner would be a taste judgement rather than a fact.
 MOOD_FAMILIES = (
     {"calm", "chill", "relaxed", "focused"},
     {"happy", "confident"},
     {"moody", "melancholy"},
+    {"intense", "energetic"},
 )
+
+# Every character a catalog or a user might reasonably use as a hyphen: the ASCII
+# hyphen-minus plus the typographic dashes word processors substitute for it.
+# Without the full set, "Indie-Pop" matches and "Indie-Pop" with an en dash does not.
+_DASHES = "-‐‑‒–—―−"
+_DASH_TO_SPACE = {ord(dash): " " for dash in _DASHES}
 
 
 def _normalise(value) -> str:
-    """Lowercase, trim, and treat hyphens as spaces so 'Indie-Pop' == 'indie pop'."""
-    return " ".join(str(value).replace("-", " ").lower().split())
+    """Lowercase, trim, and treat any dash as a space so 'Indie-Pop' == 'indie pop'."""
+    return " ".join(str(value).translate(_DASH_TO_SPACE).lower().split())
+
+
+def _artist_key(name) -> str:
+    """
+    Identity key for the one-song-per-artist rule.
+
+    Stricter than _normalise: it drops separators entirely, so "LoRoom",
+    "Lo-Room" and "Lo Room" collapse to one artist. _normalise alone turns the
+    hyphen into a space and leaves 'lo room' != 'loroom', which let the same
+    artist appear twice in a single list.
+    """
+    return "".join(ch for ch in _normalise(name) if ch.isalnum())
 
 
 def _are_related(a: str, b: str, families: Tuple[set, ...]) -> bool:
@@ -152,9 +180,16 @@ def load_songs(csv_path: str) -> List[Dict]:
     without converting first.
 
     Raises FileNotFoundError if the file is missing, and ValueError if the header
-    is missing a column or a row holds a value that is not a number.
+    is missing a column, a row holds a value that is not a finite number, a
+    proportion falls outside 0.0-1.0, or two rows share an id.
+
+    "Not a number" has to mean more than "float() refused it": float("NaN") and
+    float("Infinity") both succeed. An infinite acousticness would clear the
+    acoustic threshold and an infinite energy would silently score zero, so both
+    are rejected at the door rather than ranked.
     """
     songs: List[Dict] = []
+    id_lines: Dict[int, int] = {}
 
     with open(csv_path, newline="", encoding="utf-8") as csv_file:
         reader = csv.DictReader(csv_file)
@@ -179,6 +214,29 @@ def load_songs(csv_path: str) -> List[Dict]:
                     song[column] = float(song[column])
             except ValueError as exc:
                 raise ValueError(f"{csv_path} line {line_no}: {exc}") from exc
+
+            # float() accepts "NaN" and "Infinity". Scoring cannot.
+            for column in NUMERIC_COLUMNS:
+                if not math.isfinite(song[column]):
+                    raise ValueError(
+                        f"{csv_path} line {line_no}: {column} is "
+                        f"{row[column].strip()!r}, which is not a finite number"
+                    )
+
+            for column in UNIT_INTERVAL_COLUMNS:
+                if not 0.0 <= song[column] <= 1.0:
+                    raise ValueError(
+                        f"{csv_path} line {line_no}: {column} is {song[column]}, "
+                        f"which is outside the range 0.0 to 1.0"
+                    )
+
+            # Ids identify songs. Two rows sharing one makes any lookup ambiguous.
+            if song["id"] in id_lines:
+                raise ValueError(
+                    f"{csv_path} line {line_no}: duplicate id {song['id']}, "
+                    f"already used on line {id_lines[song['id']]}"
+                )
+            id_lines[song["id"]] = line_no
 
             songs.append(song)
 
@@ -235,12 +293,26 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     # and should score as such. This is what breaks ties inside a genre+mood tier.
     target_energy = user_prefs.get("energy")
     if target_energy is not None:
-        closeness = 1.0 - abs(song["energy"] - float(target_energy))
+        # Out of range, every song clamps to +0.00 and the feature silently stops
+        # discriminating - a profile asking for energy=80 (meaning 80%) would get
+        # a confident ranking with the tie-breaker quietly switched off. Refuse it.
+        try:
+            target = float(target_energy)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"energy preference must be a number, got {target_energy!r}"
+            ) from exc
+
+        if not math.isfinite(target) or not 0.0 <= target <= 1.0:
+            raise ValueError(
+                f"energy preference must be between 0.0 and 1.0, got {target_energy!r}"
+            )
+
+        closeness = 1.0 - abs(song["energy"] - target)
         points = ENERGY_WEIGHT * max(0.0, closeness)
         score += points
         reasons.append(
-            f"energy {song['energy']:.2f} vs target {float(target_energy):.2f} "
-            f"(+{points:.2f})"
+            f"energy {song['energy']:.2f} vs target {target:.2f} (+{points:.2f})"
         )
 
     # --- Priority 4: acoustic ----------------------------------------------
@@ -290,7 +362,7 @@ def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tup
     for song, score, reasons in scored:
         if len(recommendations) >= k:
             break
-        artist = _normalise(song["artist"])
+        artist = _artist_key(song["artist"])
         if artist in seen_artists:
             continue
         seen_artists.add(artist)
