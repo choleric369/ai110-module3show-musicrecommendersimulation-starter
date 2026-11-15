@@ -326,3 +326,15 @@ Resolution: merged into main only. The user said "I need to see the changes loca
 which points at the merge; pushing sends code to a remote and was not clearly asked for.
 
 --------------------------------------------------------------------------------
+
+[2026-11-14 | Prompt #15]
+[ambiguity] "push it" did not name a branch or remote. Options were pushing main, or
+pushing the feature branch feat/content-based-recommender separately.
+Resolution: pushed main to origin, since main already contains every commit after the
+merge at Prompt #14 and the user's stated goal was seeing the work in the repo. The
+feature branch is now redundant - identical content - and was left local.
+
+[note] Applied the lesson from Prompt #14: wrote these log entries BEFORE committing, so
+prompts.txt and logs.txt were committed last and the tree was clean at push time.
+
+--------------------------------------------------------------------------------
